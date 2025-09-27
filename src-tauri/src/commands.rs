@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 use tauri::State;
-use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 use crate::app_config::AppType;
 use crate::codex_config;
@@ -655,9 +655,8 @@ pub async fn open_app_config_folder(handle: tauri::AppHandle) -> Result<bool, St
 
 /// 获取设置
 #[tauri::command]
-pub async fn get_settings() -> Result<serde_json::Value, String> {
-    serde_json::to_value(crate::settings::get_settings())
-        .map_err(|e| format!("序列化设置失败: {}", e))
+pub async fn get_settings() -> Result<crate::settings::AppSettings, String> {
+    Ok(crate::settings::get_settings())
 }
 
 /// 保存设置
@@ -674,7 +673,7 @@ pub async fn check_for_updates(handle: tauri::AppHandle) -> Result<bool, String>
     handle
         .opener()
         .open_url(
-            "https://github.com/farion1231/cc-switch/releases",
+            "https://github.com/farion1231/cc-switch/releases/latest",
             None::<String>,
         )
         .map_err(|e| format!("打开更新页面失败: {}", e))?;
@@ -682,15 +681,32 @@ pub async fn check_for_updates(handle: tauri::AppHandle) -> Result<bool, String>
     Ok(true)
 }
 
+/// 判断是否为便携版（绿色版）运行
+#[tauri::command]
+pub async fn is_portable_mode() -> Result<bool, String> {
+    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行路径失败: {}", e))?;
+    if let Some(dir) = exe_path.parent() {
+        Ok(dir.join("portable.ini").is_file())
+    } else {
+        Ok(false)
+    }
+}
+
 /// VS Code: 获取用户 settings.json 状态
 #[tauri::command]
 pub async fn get_vscode_settings_status() -> Result<ConfigStatus, String> {
     if let Some(p) = vscode::find_existing_settings() {
-        Ok(ConfigStatus { exists: true, path: p.to_string_lossy().to_string() })
+        Ok(ConfigStatus {
+            exists: true,
+            path: p.to_string_lossy().to_string(),
+        })
     } else {
         // 默认返回 macOS 稳定版路径（或其他平台首选项的第一个候选），但标记不存在
         let preferred = vscode::candidate_settings_paths().into_iter().next();
-        Ok(ConfigStatus { exists: false, path: preferred.unwrap_or_default().to_string_lossy().to_string() })
+        Ok(ConfigStatus {
+            exists: false,
+            path: preferred.unwrap_or_default().to_string_lossy().to_string(),
+        })
     }
 }
 

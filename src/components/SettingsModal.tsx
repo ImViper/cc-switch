@@ -8,6 +8,7 @@ import {
   Check,
   Undo2,
   FolderSearch,
+  Save,
 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { homeDir, join } from "@tauri-apps/api/path";
@@ -25,6 +26,7 @@ interface SettingsModalProps {
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<Settings>({
     showInTray: true,
+    minimizeToTrayOnClose: true,
     claudeConfigDir: undefined,
     codexConfigDir: undefined,
   });
@@ -35,6 +37,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [showUpToDate, setShowUpToDate] = useState(false);
   const [resolvedClaudeDir, setResolvedClaudeDir] = useState<string>("");
   const [resolvedCodexDir, setResolvedCodexDir] = useState<string>("");
+  const [isPortable, setIsPortable] = useState(false);
   const { hasUpdate, updateInfo, updateHandle, checkUpdate, resetDismiss } =
     useUpdate();
 
@@ -43,6 +46,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     loadConfigPath();
     loadVersion();
     loadResolvedDirs();
+    loadPortableFlag();
   }, []);
 
   const loadVersion = async () => {
@@ -63,8 +67,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         (loadedSettings as any)?.showInTray ??
         (loadedSettings as any)?.showInDock ??
         true;
+      const minimizeToTrayOnClose =
+        (loadedSettings as any)?.minimizeToTrayOnClose ??
+        (loadedSettings as any)?.minimize_to_tray_on_close ??
+        true;
       setSettings({
         showInTray,
+        minimizeToTrayOnClose,
         claudeConfigDir:
           typeof (loadedSettings as any)?.claudeConfigDir === "string"
             ? (loadedSettings as any).claudeConfigDir
@@ -103,6 +112,15 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
+  const loadPortableFlag = async () => {
+    try {
+      const portable = await window.api.isPortable();
+      setIsPortable(portable);
+    } catch (error) {
+      console.error("检测便携模式失败:", error);
+    }
+  };
+
   const saveSettings = async () => {
     try {
       const payload: Settings = {
@@ -126,6 +144,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   const handleCheckUpdate = async () => {
     if (hasUpdate && updateHandle) {
+      if (isPortable) {
+        await window.api.checkForUpdates();
+        return;
+      }
       // 已检测到更新：直接复用 updateHandle 下载并安装，避免重复检查
       setIsDownloading(true);
       try {
@@ -274,7 +296,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           isLinux() ? "" : " backdrop-blur-sm"
         }`}
       />
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-[500px] overflow-hidden">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-[500px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
           <h2 className="text-lg font-semibold text-blue-500 dark:text-blue-400">
@@ -289,27 +311,36 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* 设置内容 */}
-        <div className="px-6 py-4 space-y-6">
-          {/* 系统托盘设置（未实现）
-              说明：此开关用于控制是否在系统托盘/菜单栏显示应用图标。 */}
-          {/* <div>
+        <div className="px-6 py-4 space-y-6 overflow-y-auto flex-1">
+          {/* 窗口行为设置 */}
+          <div>
             <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
-              显示设置（系统托盘）
+              窗口行为
             </h3>
-            <label className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">
-                在菜单栏显示图标（系统托盘）
-              </span>
-              <input
-                type="checkbox"
-                checked={settings.showInTray}
-                onChange={(e) =>
-                  setSettings({ ...settings, showInTray: e.target.checked })
-                }
-                className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500/20"
-              />
-            </label>
-          </div> */}
+            <div className="space-y-3">
+              <label className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm text-gray-900 dark:text-gray-100">
+                    关闭时最小化到托盘
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    勾选后点击关闭按钮会隐藏到系统托盘，取消则直接退出应用。
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.minimizeToTrayOnClose}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      minimizeToTrayOnClose: e.target.checked,
+                    }))
+                  }
+                  className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500/20"
+                />
+              </label>
+            </div>
+          </div>
 
           {/* VS Code 自动同步设置已移除 */}
 
@@ -504,8 +535,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={saveSettings}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
           >
+            <Save size={16} />
             保存
           </button>
         </div>

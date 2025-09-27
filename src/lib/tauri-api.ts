@@ -223,7 +223,7 @@ export const tauriAPI = {
       return await invoke("get_settings");
     } catch (error) {
       console.error("获取设置失败:", error);
-      return { showInTray: true };
+      return { showInTray: true, minimizeToTrayOnClose: true };
     }
   },
 
@@ -243,6 +243,16 @@ export const tauriAPI = {
       await invoke("check_for_updates");
     } catch (error) {
       console.error("检查更新失败:", error);
+    }
+  },
+
+  // 判断是否为便携模式
+  isPortable: async (): Promise<boolean> => {
+    try {
+      return await invoke<boolean>("is_portable_mode");
+    } catch (error) {
+      console.error("检测便携模式失败:", error);
+      return false;
     }
   },
 
